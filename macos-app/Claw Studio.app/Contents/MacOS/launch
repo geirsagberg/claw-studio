@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Claw Studio launcher — runs inside the .app bundle
+
+APP_DIR="$(cd "$(dirname "$0")/../../../.." && pwd)"
+STUDIO_DIR="$APP_DIR"
+INSTALL_SCRIPT="$STUDIO_DIR/install.sh"
+
+# ── Find nanoclaw ─────────────────────────────────────────────────────────────
+find_nanoclaw() {
+  local check="$STUDIO_DIR"
+  for _ in 1 2 3 4 5; do
+    if [[ -d "$check/groups" ]] && [[ -d "$check/src" || -d "$check/store" ]]; then
+      echo "$check"
+      return
+    fi
+    check="$(dirname "$check")"
+  done
+  # Check default location
+  if [[ -d "$HOME/nanoclaw/groups" ]]; then
+    echo "$HOME/nanoclaw"
+    return
+  fi
+}
+
+NANOCLAW_DIR="$(find_nanoclaw)"
+
+# ── Not installed — run installer ─────────────────────────────────────────────
+if [[ -z "$NANOCLAW_DIR" ]] || [[ ! -d "$STUDIO_DIR/node_modules" ]]; then
+  osascript <<'APPLESCRIPT'
+    tell application "Terminal"
+      activate
+      do script "curl -fsSL https://raw.githubusercontent.com/perweum/claw-studio/main/install.sh | bash"
+    end tell
+APPLESCRIPT
+  exit 0
+fi
+
+# ── Already installed — start server ──────────────────────────────────────────
+
+# Add homebrew node to PATH
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+cd "$STUDIO_DIR" || exit 1
+
+# Kill any stale server on our ports
+for port in 5173 5174 5175 5176 5177; do
+  pid=$(lsof -ti TCP:"$port" 2>/dev/null) && kill "$pid" 2>/dev/null || true
+done
+
+# Start the dev server
+npm run dev &
+SERVER_PID=$!
+
+# Wait for it to be ready (up to 10s)
+for i in $(seq 1 20); do
+  sleep 0.5
+  PORT=$(lsof -i TCP -sTCP:LISTEN -P -n 2>/dev/null | awk '/node/{print $9}' | grep -oE '[0-9]+$' | sort -n | head -1)
+  [[ -n "$PORT" ]] && break
+done
+
+open "http://localhost:${PORT:-5173}"
+
+# Keep running until the server exits
+wait "$SERVER_PID"
