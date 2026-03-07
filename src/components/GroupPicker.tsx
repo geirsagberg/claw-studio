@@ -237,7 +237,7 @@ export function GroupPicker({ onClose, initialMode = 'list', onNewChannel }: Gro
                       <button
                         key={platform}
                         className={`group-picker__channel-add-btn ${pendingChannel?.label === label ? 'group-picker__channel-add-btn--selected' : ''}`}
-                        style={{ borderColor: color + '66', color }}
+                        style={{ '--ch': color, borderColor: color + '66', color } as React.CSSProperties}
                         onClick={() => setPendingChannel(p => p?.label === label ? null : { label, skillMsg })}
                       >
                         {pendingChannel?.label === label ? '✓ ' : '+ '}{label}
