@@ -69,23 +69,107 @@ else
   ok "git $(git --version | awk '{print $3}')"
 fi
 
-# ── Docker ────────────────────────────────────────────────────────────────────
+# ── Container runtime ─────────────────────────────────────────────────────────
 step "Checking container runtime"
-if command -v container &>/dev/null; then
-  ok "Apple Container found"
-elif command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
-  ok "Docker found and running"
+
+HAS_APPLE=false
+HAS_DOCKER=false
+CHOSEN_RUNTIME=""
+
+command -v container &>/dev/null && HAS_APPLE=true
+command -v docker &>/dev/null && docker info &>/dev/null 2>&1 && HAS_DOCKER=true
+
+if $HAS_APPLE && $HAS_DOCKER; then
+  # Both available — ask which to use
+  echo ""
+  echo "  Both Apple Container and Docker are installed."
+  echo "  Which one should nanoclaw use?"
+  echo ""
+  echo "  ${bold}1)${reset} Apple Container  — native macOS, lightweight, no background daemon"
+  echo "  ${bold}2)${reset} Docker           — widely compatible, works on any macOS version"
+  echo ""
+  read -r -p "  Choose [1/2]: " choice
+  if [[ "$choice" == "2" ]]; then
+    CHOSEN_RUNTIME="docker"
+    ok "Using Docker"
+  else
+    CHOSEN_RUNTIME="apple"
+    ok "Using Apple Container"
+  fi
+
+elif $HAS_APPLE; then
+  CHOSEN_RUNTIME="apple"
+  ok "Apple Container found — using it"
+
+elif $HAS_DOCKER; then
+  CHOSEN_RUNTIME="docker"
+  ok "Docker found and running — using it"
+
 else
-  warn "No container runtime detected."
+  # Nothing installed — ask which to install
   echo ""
-  echo "  nanoclaw runs agents inside containers. You need either:"
-  echo "  • Docker Desktop — https://www.docker.com/products/docker-desktop/"
-  echo "  • Apple Container (macOS 26+) — built into the OS"
+  echo "  nanoclaw runs agents inside containers. Nothing is installed yet."
+  echo "  Which container runtime would you like to use?"
   echo ""
-  echo "  Install Docker Desktop, then re-run this installer."
-  echo "  (Or press Enter to continue anyway if you'll set it up separately.)"
-  read -r -p "  Continue? [y/N] " yn
-  [[ "$yn" =~ ^[Yy]$ ]] || exit 0
+  echo "  ${bold}1)${reset} Apple Container  — native macOS, lightweight, no background daemon"
+  echo "                     Requires macOS 26 (Tahoe) or later"
+  echo "  ${bold}2)${reset} Docker Desktop   — works on any macOS version, installs via Homebrew"
+  echo "                     Free for personal use"
+  echo ""
+  read -r -p "  Choose [1/2]: " choice
+
+  if [[ "$choice" == "1" ]]; then
+    CHOSEN_RUNTIME="apple"
+    # Check macOS version
+    MACOS_VER=$(sw_vers -productVersion | cut -d. -f1)
+    if [[ "$MACOS_VER" -lt 26 ]]; then
+      warn "Apple Container requires macOS 26 (Tahoe) or later. You have macOS $MACOS_VER."
+      echo ""
+      echo "  Options:"
+      echo "  • Upgrade to macOS 26, then re-run this installer"
+      echo "  • Choose Docker instead (press Enter to switch)"
+      echo ""
+      read -r -p "  Switch to Docker? [Y/n] " yn
+      yn="${yn:-y}"
+      if [[ "$yn" =~ ^[Yy]$ ]]; then
+        CHOSEN_RUNTIME="docker"
+      else
+        die "Apple Container not available on this macOS version. Re-run after upgrading."
+      fi
+    fi
+    if [[ "$CHOSEN_RUNTIME" == "apple" ]]; then
+      if ! command -v container &>/dev/null; then
+        echo ""
+        echo "  Apple Container is part of macOS 26."
+        echo "  If it's not available yet, enable it via:"
+        echo "  System Settings → Developer Tools → Container"
+        echo ""
+        read -r -p "  Press Enter once Apple Container is enabled, or Ctrl+C to cancel..."
+        command -v container &>/dev/null || die "Apple Container still not found. Enable it and re-run."
+      fi
+      ok "Apple Container ready"
+    fi
+  else
+    CHOSEN_RUNTIME="docker"
+  fi
+
+  if [[ "$CHOSEN_RUNTIME" == "docker" ]]; then
+    if ! command -v docker &>/dev/null; then
+      step "Installing Docker Desktop via Homebrew"
+      brew install --cask docker
+      ok "Docker Desktop installed"
+      echo ""
+      echo "  ${yellow}!${reset} Docker Desktop needs to start once before it's usable."
+      echo "    Opening Docker now — wait for the whale icon to appear in your menu bar,"
+      echo "    then press Enter to continue."
+      echo ""
+      open -a Docker
+      read -r -p "  Press Enter when Docker is running..."
+    fi
+    # Verify Docker is now running
+    docker info &>/dev/null 2>&1 || die "Docker doesn't seem to be running. Start Docker Desktop and re-run."
+    ok "Docker running"
+  fi
 fi
 
 # ── nanoclaw ──────────────────────────────────────────────────────────────────
@@ -124,6 +208,16 @@ else
   step "Installing nanoclaw dependencies"
   (cd "$NANOCLAW_DIR" && npm install --silent)
   ok "Dependencies installed"
+
+  # Write container runtime choice to nanoclaw's .env
+  NANOCLAW_ENV="$NANOCLAW_DIR/.env"
+  if [[ "$CHOSEN_RUNTIME" == "apple" ]]; then
+    grep -q "^CONTAINER_RUNTIME=" "$NANOCLAW_ENV" 2>/dev/null \
+      && sed -i '' 's/^CONTAINER_RUNTIME=.*/CONTAINER_RUNTIME=apple/' "$NANOCLAW_ENV" \
+      || echo "CONTAINER_RUNTIME=apple" >> "$NANOCLAW_ENV"
+    ok "Container runtime set to Apple Container in nanoclaw/.env"
+  fi
+  # (docker is the nanoclaw default — no need to write it unless overriding apple)
 
   # Build the agent container
   step "Building agent container (this takes a minute)"
