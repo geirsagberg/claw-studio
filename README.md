@@ -1,7 +1,7 @@
 <div align="center">
   <img src="logo.svg" width="120" alt="Claw Studio" />
   <h1>Claw Studio</h1>
-  <p>Visual AI agent builder for <a href="https://github.com/nanoclaw-ai/nanoclaw">nanoclaw</a> — no code required.</p>
+  <p>Visual AI agent builder for <a href="https://github.com/qwibitai/nanoclaw">nanoclaw</a> — no code required.</p>
 </div>
 
 ---
@@ -390,7 +390,7 @@ You can monitor usage at [console.anthropic.com](https://console.anthropic.com).
 
 ### Can I use Claw Studio without nanoclaw?
 
-No — Claw Studio is a visual editor for nanoclaw configurations. It needs nanoclaw running to save blueprints, register schedules, and deploy bots. [Install nanoclaw here](https://github.com/nanoclaw-ai/nanoclaw).
+No — Claw Studio is a visual editor for nanoclaw configurations. It needs nanoclaw running to save blueprints, register schedules, and deploy bots. [Install nanoclaw here](https://github.com/qwibitai/nanoclaw).
 
 ### How do I add a Telegram / WhatsApp / Slack channel?
 

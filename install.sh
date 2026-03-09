@@ -5,7 +5,7 @@
 set -euo pipefail
 
 CLAW_REPO="https://github.com/perweum/claw-studio.git"
-NANOCLAW_REPO="https://github.com/nanoclaw-ai/nanoclaw.git"
+NANOCLAW_REPO="https://github.com/qwibitai/nanoclaw.git"
 NANOCLAW_DIR="$HOME/nanoclaw"
 STUDIO_DIR=""   # resolved below
 
